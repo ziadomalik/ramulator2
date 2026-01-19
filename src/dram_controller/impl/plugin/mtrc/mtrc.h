@@ -25,7 +25,7 @@
  * +--------------+------+-------------------------------------+
  * |     Name     | Size |             Description             |
  * +--------------+------+-------------------------------------+
- * | magic        | 5B   | "RAM2\0" (null-terminated)           |
+ * | magic        | 5B   | "RAM2\0" (null-terminated)          |
  * | version      | 1B   | Major version of the file format    |
  * | num_commands | 1B   | Number of unique command strings    |
  * | reserved     | 1B   | Padding to align next field to 8B   |
