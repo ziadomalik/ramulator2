@@ -211,5 +211,5 @@ public:
   }
 };
 
-static_assert(sizeof(Header) == 24, "mtrc::Header size must be 24 bytes");
-static_assert(sizeof(Entry) == 32, "mtrc::Entry size must be 32 bytes");
+static_assert(sizeof(Header) == 24, "(mtrc) Header size must be 24 bytes");
+static_assert(sizeof(Entry) == 32, "(mtrc) Entry size must be 32 bytes");
