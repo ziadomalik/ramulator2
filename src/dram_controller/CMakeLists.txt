@@ -26,6 +26,7 @@ target_sources(
   impl/rowpolicy/basic_rowpolicies.cpp
 
   impl/plugin/trace_recorder.cpp
+  impl/plugin/binary_trace_recorder.cpp
   impl/plugin/cmd_counter.cpp
   impl/plugin/para.cpp
   impl/plugin/graphene.cpp

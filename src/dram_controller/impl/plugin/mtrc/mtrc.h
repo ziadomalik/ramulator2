@@ -25,10 +25,10 @@
  * +--------------+------+-------------------------------------+
  * |     Name     | Size |             Description             |
  * +--------------+------+-------------------------------------+
- * | magic        | 4B   | "MTRC"                              |
+ * | magic        | 5B   | "RAM2\0" (null-terminated)           |
  * | version      | 1B   | Major version of the file format    |
  * | num_commands | 1B   | Number of unique command strings    |
- * | reserved     | 2B   | Padding to align next field to 8B   |
+ * | reserved     | 1B   | Padding to align next field to 8B   |
  * | num_records  | 8B   | Number of entries / trace events    |
  * | dict_offset  | 8B   | Byte offset where dictionary starts |
  * +--------------+------+-------------------------------------+
@@ -37,6 +37,9 @@
  * Holds a single trace event.
  * It has a fixed width of 32 bytes, meaning two entries fit into a single
  * 64-bit cache line.
+ *
+ * All address fields (clk, channel, rank, bankgroup, bank, row, column) are
+ * signed integers. Invalid address components are represented as -1.
  *
  * +-------------+------+---------------------------------------------+
  * |    Name     | Size |                 Description                 |
@@ -49,7 +52,7 @@
  * | row         | 4B   | Row                                         |
  * | column      | 4B   | Column                                      |
  * | cmd_id      | 1B   | Command ID (index in the dictionary)        |
- * | padding[11] | 11B  | Padding to align to 32 bytes                |
+ * | reserved    | 3B   | Padding to align struct to 32 bytes         |
  * +-------------+------+---------------------------------------------+
  *
  * DICTIONARY:
