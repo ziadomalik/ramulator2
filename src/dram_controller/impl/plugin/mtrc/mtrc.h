@@ -29,7 +29,7 @@
  * | version      | 1B   | Major version of the file format    |
  * | num_commands | 1B   | Number of unique command strings    |
  * | reserved     | 1B   | Padding to align next field to 8B   |
- * | num_records  | 8B   | Number of entries / trace events    |
+ * | num_entries  | 8B   | Number of entries / trace events    |
  * | dict_offset  | 8B   | Byte offset where dictionary starts |
  * +--------------+------+-------------------------------------+
  *
@@ -85,7 +85,7 @@ struct Header {
   uint8_t version;      // (0x04) Major version of the file format
   uint8_t num_commands; // (0x05) Number of unique command strings
   uint8_t reserved;     // (0x06) Padding to align next field to 8B
-  uint64_t num_records; // (0x08) Number of entries / trace events
+  uint64_t num_entries; // (0x08) Number of entries / trace events
   uint64_t dict_offset; // (0x10) Offset to the dictionary in the file
 };
 
@@ -135,7 +135,7 @@ public:
         .version = MTRC_VERSION,
         .num_commands = 0,
         .reserved = 0,
-        .num_records = 0,
+        .num_entries = 0,
         .dict_offset = 0,
     };
 
@@ -150,7 +150,7 @@ public:
         .version = MTRC_VERSION,
         .num_commands = num_commands,
         .reserved = 0,
-        .num_records = m_num_entries,
+        .num_entries = m_num_entries,
         .dict_offset = m_dict_offset,
     };
 

@@ -24,8 +24,8 @@ def read_header(f):
     if len(data) < HEADER_SIZE:
         raise ValueError("File too small to contain header")
 
-    # Layout: 5s magic, B version, B num_commands, B reserved, Q num_records, Q dict_offset
-    magic, version, num_commands, reserved, num_records, dict_offset = struct.unpack(
+    # Layout: 5s magic, B version, B num_commands, B reserved, Q num_entries, Q dict_offset
+    magic, version, num_commands, reserved, num_entries, dict_offset = struct.unpack(
         "<5sBBBQQ", data
     )
 
@@ -36,7 +36,7 @@ def read_header(f):
         "magic": magic,
         "version": version,
         "num_commands": num_commands,
-        "num_records": num_records,
+        "num_entries": num_entries,
         "dict_offset": dict_offset,
     }
 
@@ -62,7 +62,7 @@ def read_entries(f, header):
     f.seek(HEADER_SIZE)  # Start right after header
     entries = []
 
-    for _ in range(header["num_records"]):
+    for _ in range(header["num_entries"]):
         data = f.read(ENTRY_SIZE)
         if len(data) < ENTRY_SIZE:
             break
@@ -85,7 +85,7 @@ def mtrc_to_csv(input_path, output_path=None):
         header = read_header(f)
         print(f"MTRC Version: {header['version']}")
         print(f"Number of commands: {header['num_commands']}")
-        print(f"Number of records: {header['num_records']}")
+        print(f"Number of records: {header['num_entries']}")
         print(f"Dictionary offset: {header['dict_offset']}")
 
         commands = read_dictionary(f, header)
