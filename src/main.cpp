@@ -9,6 +9,7 @@
 #include "frontend/frontend.h"
 #include "memory_system/memory_system.h"
 #include "example/example_ifce.h"
+#include "visualizer/server/visualizer.h"
 
 int main(int argc, char* argv[]) {
   // Parse command line arguments
@@ -20,6 +21,7 @@ int main(int argc, char* argv[]) {
   program.add_argument("-p", "--param").metavar("KEY=VALUE")
     .append()
     .help("Specify parameter to override in the configuration file. Repeat this option to change multiple parameters.");
+  program.add_argument("-v", "--visualize").default_value(false).implicit_value(true).help("Enable trace visualizer.");
 
   try {
     program.parse_args(argc, argv);
@@ -53,6 +55,9 @@ int main(int argc, char* argv[]) {
     has_param_override = true;
     params = *arg;
   }
+
+  // Are we visualizing the trace?
+  bool visualize = program.get<bool>("-v");
 
   // Some sanity check of the inputs
   if (use_dumped_yaml && use_yaml_file) {
@@ -91,6 +96,10 @@ int main(int argc, char* argv[]) {
   frontend->connect_memory_system(memory_system);
   memory_system->connect_frontend(frontend);
 
+  if (visualize) {
+    Visualizer::start_server(8080);
+  }
+
   // Get the relative clock ratio between the frontend and memory system
   int frontend_tick = frontend->get_clock_ratio();
   int mem_tick = memory_system->get_clock_ratio();
@@ -114,6 +123,10 @@ int main(int argc, char* argv[]) {
   // Finalize the simulation. Recursively print all statistics from all components
   frontend->finalize();
   memory_system->finalize();
+
+  if (visualize) {
+    Visualizer::wait_for_termination();
+  }
 
   return 0;
 }

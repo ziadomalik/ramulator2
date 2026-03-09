@@ -62,6 +62,37 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(argparse)
 include_directories(${argparse_SOURCE_DIR}/include)
 message("Done configuring argparse.")
+
+message("Configuring cmrc (CMake Resource Compiler)...")
+FetchContent_Declare(
+  cmrc
+  GIT_REPOSITORY https://github.com/vector-of-bool/cmrc.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(cmrc)
+message("Done configuring cmrc.")
+
+message("Configuring standalone ASIO (Crow dependency)...")
+
+FetchContent_Declare(
+  asio
+  URL https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-30-2.tar.gz
+)
+FetchContent_MakeAvailable(asio)
+
+set(ASIO_INCLUDE_DIR "${asio_SOURCE_DIR}/asio/include" CACHE PATH "ASIO include dir" FORCE)
+
+include_directories(${ASIO_INCLUDE_DIR})
+message("Done configuring ASIO.")
+
+message("Configuring Crow...")
+FetchContent_Declare(
+  crow
+  GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+  GIT_TAG v1.3.0
+)
+FetchContent_MakeAvailable(crow)
+message("Done configuring Crow.")
 ##################################
 
 include_directories(${CMAKE_SOURCE_DIR}/src)

@@ -6,6 +6,13 @@ add_subdirectory(memory_system)
 add_subdirectory(addr_mapper)
 add_subdirectory(dram)
 add_subdirectory(dram_controller)
+add_subdirectory(visualizer)
+
+target_link_libraries(
+  ramulator-exe 
+  PRIVATE 
+  visualizer
+)
 
 target_sources(
   ramulator-exe
