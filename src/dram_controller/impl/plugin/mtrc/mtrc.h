@@ -9,9 +9,9 @@
  * +----------------+
  * |  Header (24B)  |
  * +----------------+
- * | Entry #1 (32B) |
+ * | Entry #1 (64B) |
  * +----------------+
- * | Entry #2 (32B) |
+ * | Entry #2 (64B) |
  * +----------------+
  * | ...            |
  * +----------------+
@@ -35,8 +35,7 @@
  *
  * ENTRY:
  * Holds a single trace event.
- * It has a fixed width of 32 bytes, meaning two entries fit into a single
- * 64-bit cache line.
+ * It has a fixed width of 64 bytes.
  *
  * All address fields (clk, channel, rank, bankgroup, bank, row, column) are
  * signed integers. Invalid address components are represented as -1.
@@ -45,14 +44,19 @@
  * |    Name     | Size |                 Description                 |
  * +-------------+------+---------------------------------------------+
  * | clk         | 8B   | Clock cycle in which the event occurs       |
+ * | req_arrive  | 8B   | Request arrival clock cycle                 |
+ * | req_depart  | 8B   | Request departure clock cycle               |
  * | channel     | 2B   | Channel                                     |
  * | rank        | 2B   | Rank                                        |
  * | bankgroup   | 4B   | Bankgroup                                   |
  * | bank        | 4B   | Bank                                        |
  * | row         | 4B   | Row                                         |
  * | column      | 4B   | Column                                      |
+ * | req_source  | 4B   | Request source ID                           |
+ * | req_type    | 4B   | Request type ID                             |
+ * | req_issue_duration | 4B | Request issue duration in cycles      |
  * | cmd_id      | 1B   | Command ID (index in the dictionary)        |
- * | reserved    | 3B   | Padding to align struct to 32 bytes         |
+ * | reserved    | 7B   | Padding to align struct to 64 bytes         |
  * +-------------+------+---------------------------------------------+
  *
  * DICTIONARY:
@@ -73,11 +77,12 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstdint>
 #include <fstream>
 #include <string_view>
 #include <vector>
 
-#define MTRC_VERSION 1
+#define MTRC_VERSION 2
 #define MTRC_MAGIC "RAM2"
 
 struct Header {
@@ -99,16 +104,21 @@ struct Header {
 /// 'TraceRecorder' uses -1 as value for invalid address vector components. We
 /// could add a 1B flag to indicate invalid values.
 struct Entry {
-  int64_t clk;         // (0x00) Clock cycle in which the event occurs
-  int16_t channel;     // (0x08) Channel
-  int16_t rank;        // (0x0A) Rank
-  int32_t bankgroup;   // (0x0C) Bankgroup
-  int32_t bank;        // (0x10) Bank
-  int32_t row;         // (0x14) Row
-  int32_t column;      // (0x18) Column
-  uint8_t cmd_id;      // (0x1C) Command ID (index in the dictionary)
-  uint8_t reserved[3]; // (0x1D) Padding to align struct to 32 bytes
-} __attribute__((packed));
+  int64_t clk;                // (0x00) Clock cycle in which the event occurs
+  int64_t req_arrive;         // (0x08) Request arrival clock cycle
+  int64_t req_depart;         // (0x10) Request departure clock cycle
+  int16_t channel;            // (0x18) Channel
+  int16_t rank;               // (0x1A) Rank
+  int32_t bankgroup;          // (0x1C) Bankgroup
+  int32_t bank;               // (0x20) Bank
+  int32_t row;                // (0x24) Row
+  int32_t column;             // (0x28) Column
+  int32_t req_source_id;      // (0x2C) Request source ID
+  int32_t req_type_id;        // (0x30) Request type ID
+  int32_t req_issue_duration; // (0x34) Request issue duration in cycles
+  uint8_t cmd_id;             // (0x38) Command ID (index in the dictionary)
+  uint8_t reserved[7];        // (0x39) Padding to align struct to 64 bytes
+};
 
 class MTRCWriter {
 private:
@@ -159,7 +169,9 @@ public:
   }
 
   void write_entry(int64_t clk, const std::vector<int> &addr_vec,
-                   std::string_view cmd) {
+                   std::string_view cmd, int32_t req_source_id,
+                   int32_t req_type_id, int64_t req_arrive,
+                   int64_t req_depart, int32_t req_issue_duration) {
     std::string cmd_str(cmd);
 
     // Find the command in the dictionary, or add it if it's not found.
@@ -179,12 +191,17 @@ public:
 
     Entry entry = {
         .clk = clk,
+        .req_arrive = req_arrive,
+        .req_depart = req_depart,
         .channel = channel,
         .rank = rank,
         .bankgroup = bankgroup,
         .bank = bank,
         .row = row,
         .column = column,
+        .req_source_id = req_source_id,
+        .req_type_id = req_type_id,
+        .req_issue_duration = req_issue_duration,
         .cmd_id = cmd_id,
         .reserved = {},
     };
@@ -212,4 +229,4 @@ public:
 };
 
 static_assert(sizeof(Header) == 24, "(mtrc) Header size must be 24 bytes");
-static_assert(sizeof(Entry) == 32, "(mtrc) Entry size must be 32 bytes");
+static_assert(sizeof(Entry) == 64, "(mtrc) Entry size must be 64 bytes");

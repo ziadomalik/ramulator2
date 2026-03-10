@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <format>
 
@@ -42,8 +43,18 @@ public:
     m_clk++;
 
     if (request_found) {
+      int32_t req_issue_duration = 1;
+      if (req_it->type_id != Request::Type::Write &&
+          req_it->arrive >= 0 && req_it->depart >= req_it->arrive) {
+        auto issue_window = req_it->depart - req_it->arrive;
+        req_issue_duration =
+            static_cast<int32_t>(std::max<Clk_t>(1, issue_window));
+      }
+
       m_writer->write_entry(m_clk, req_it->addr_vec,
-                            m_dram->m_commands(req_it->command));
+                            m_dram->m_commands(req_it->command),
+                            req_it->source_id, req_it->type_id, req_it->arrive,
+                            req_it->depart, req_issue_duration);
     }
   }
 
