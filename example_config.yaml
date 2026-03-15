@@ -33,6 +33,9 @@ MemorySystem:
       impl: ClosedRowPolicy
       cap: 4
     plugins:
+    - ControllerPlugin:
+        impl: BinaryTraceRecorder
+        path: results/trace_02
 
   AddrMapper:
     impl: RoBaRaCoCh

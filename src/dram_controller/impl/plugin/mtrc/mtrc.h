@@ -7,7 +7,7 @@
  * A typical trace file should look like this:
  *
  * +----------------+
- * |  Header (24B)  |
+ * |  Header (40B)  |
  * +----------------+
  * | Entry #1 (64B) |
  * +----------------+
@@ -20,18 +20,24 @@
  *
  * HEADER:
  * Holds metadata about the trace.
- * It has a fixed width of 24 bytes.
+ * It has a fixed width of 40 bytes.
  *
  * +--------------+------+-------------------------------------+
- * |     Name     | Size |             Description             |
- * +--------------+------+-------------------------------------+
- * | magic        | 5B   | "RAM2\0" (null-terminated)          |
- * | version      | 1B   | Major version of the file format    |
- * | num_commands | 1B   | Number of unique command strings    |
- * | reserved     | 1B   | Padding to align next field to 8B   |
- * | num_entries  | 8B   | Number of entries / trace events    |
- * | dict_offset  | 8B   | Byte offset where dictionary starts |
- * +--------------+------+-------------------------------------+
+ * |      Name      | Size |             Description             |
+ * +----------------+------+-------------------------------------+
+ * | magic          | 5B   | "RAM2\0" (null-terminated)          |
+ * | version        | 1B   | Major version of the file format    |
+ * | num_commands   | 1B   | Number of unique command strings    |
+ * | reserved       | 1B   | Padding to align next field to 8B   |
+ * | num_entries    | 8B   | Number of entries / trace events    |
+ * | dict_offset    | 8B   | Byte offset where dictionary starts |
+ * | ncl            | 4B   | nCL in cycles (RD cmd->data delay)  |
+ * | ncwl           | 4B   | nCWL in cycles (WR cmd->data delay) |
+ * | num_channels   | 2B   | Number of channels                  |
+ * | num_ranks      | 2B   | Number of ranks                     |
+ * | num_bankgroups | 2B   | Number of bankgroups per channel    |
+ * | num_banks      | 2B   | Number of banks per bankgroup       |
+ * +----------------+------+-------------------------------------+
  *
  * ENTRY:
  * Holds a single trace event.
@@ -65,11 +71,11 @@
  * them by index (cmd_id). It has a variable width, starting at dict_offset
  * found in the header.
  *
- * +-------------+---------------+
- * | Length (1B) | String Bytes  |
- * +-------------+---------------+
- * | Length (1B) | String Bytes  |
- * +-------------+---------------+
+ * +-------------+---------------+-------------+
+ * | Length (1B) | String Bytes  | Latency (4B)|
+ * +-------------+---------------+-------------+
+ * | Length (1B) | String Bytes  | Latency (4B)|
+ * +-------------+---------------+-------------+
  * | ...         | ...           |
  * +-------------+---------------+
  *
@@ -82,7 +88,7 @@
 #include <string_view>
 #include <vector>
 
-#define MTRC_VERSION 2
+#define MTRC_VERSION 3
 #define MTRC_MAGIC "RAM2"
 
 struct Header {
@@ -92,6 +98,12 @@ struct Header {
   uint8_t reserved;     // (0x06) Padding to align next field to 8B
   uint64_t num_entries; // (0x08) Number of entries / trace events
   uint64_t dict_offset; // (0x10) Offset to the dictionary in the file
+  int32_t ncl;          // (0x18) nCL in cycles
+  int32_t ncwl;         // (0x1C) nCWL in cycles
+  int16_t num_channels; // (0x20) Number of channels
+  int16_t num_ranks;    // (0x22) Number of ranks
+  int16_t num_bankgroups; // (0x24) Number of bankgroups per channel
+  int16_t num_banks;      // (0x26) Number of banks per bankgroup
 };
 
 /// @warning(ziad): Do NOT change the order of the fields, or the size of the
@@ -122,14 +134,30 @@ struct Entry {
 
 class MTRCWriter {
 private:
+  struct CommandDictionaryEntry {
+    std::string name;
+    int32_t latency;
+  };
+
   std::ofstream m_file;
   uint64_t m_num_entries = 0;
   uint64_t m_dict_offset = 0;
+  int32_t m_ncl = -1;
+  int32_t m_ncwl = -1;
+  int16_t m_num_channels = -1;
+  int16_t m_num_ranks = -1;
+  int16_t m_num_bankgroups = -1;
+  int16_t m_num_banks = -1;
 
-  std::vector<std::string> m_commands;
+  std::vector<CommandDictionaryEntry> m_commands;
 
 public:
-  MTRCWriter(const std::string &path) {
+  MTRCWriter(const std::string &path, int32_t ncl, int32_t ncwl,
+             int16_t num_channels, int16_t num_ranks, int16_t num_bankgroups,
+             int16_t num_banks)
+      : m_ncl(ncl), m_ncwl(ncwl), m_num_channels(num_channels),
+        m_num_ranks(num_ranks), m_num_bankgroups(num_bankgroups),
+        m_num_banks(num_banks) {
     m_file.open(path, std::ios::binary);
     if (!m_file.is_open()) {
       throw std::runtime_error("Failed to open trace file: " + path);
@@ -147,6 +175,12 @@ public:
         .reserved = 0,
         .num_entries = 0,
         .dict_offset = 0,
+        .ncl = m_ncl,
+        .ncwl = m_ncwl,
+        .num_channels = m_num_channels,
+        .num_ranks = m_num_ranks,
+        .num_bankgroups = m_num_bankgroups,
+        .num_banks = m_num_banks,
     };
 
     m_file.write(reinterpret_cast<char *>(&header), sizeof(Header));
@@ -162,6 +196,12 @@ public:
         .reserved = 0,
         .num_entries = m_num_entries,
         .dict_offset = m_dict_offset,
+        .ncl = m_ncl,
+        .ncwl = m_ncwl,
+        .num_channels = m_num_channels,
+        .num_ranks = m_num_ranks,
+        .num_bankgroups = m_num_bankgroups,
+        .num_banks = m_num_banks,
     };
 
     m_file.seekp(0, std::ios::beg);
@@ -171,14 +211,21 @@ public:
   void write_entry(int64_t clk, const std::vector<int> &addr_vec,
                    std::string_view cmd, int32_t req_source_id,
                    int32_t req_type_id, int64_t req_arrive,
-                   int64_t req_depart, int32_t req_issue_duration) {
+                   int64_t req_depart, int32_t req_issue_duration,
+                   int32_t cmd_latency) {
     std::string cmd_str(cmd);
 
     // Find the command in the dictionary, or add it if it's not found.
-    auto it = std::find(m_commands.begin(), m_commands.end(), cmd_str);
+    auto it = std::find_if(
+        m_commands.begin(), m_commands.end(),
+        [&cmd_str](const CommandDictionaryEntry &entry) {
+          return entry.name == cmd_str;
+        });
     if (it == m_commands.end()) {
-      m_commands.push_back(cmd_str);
+      m_commands.push_back({cmd_str, cmd_latency});
       it = m_commands.end() - 1;
+    } else if (it->latency < 0 && cmd_latency >= 0) {
+      it->latency = cmd_latency;
     }
     uint8_t cmd_id = static_cast<uint8_t>(it - m_commands.begin());
 
@@ -215,9 +262,11 @@ public:
     m_file.seekp(m_dict_offset, std::ios::beg);
 
     for (const auto &cmd : m_commands) {
-      uint8_t length = static_cast<uint8_t>(cmd.size());
+      uint8_t length = static_cast<uint8_t>(cmd.name.size());
       m_file.write(reinterpret_cast<const char *>(&length), 1);
-      m_file.write(cmd.data(), cmd.size());
+      m_file.write(cmd.name.data(), cmd.name.size());
+      m_file.write(reinterpret_cast<const char *>(&cmd.latency),
+                   sizeof(cmd.latency));
     }
   }
 
@@ -228,5 +277,5 @@ public:
   }
 };
 
-static_assert(sizeof(Header) == 24, "(mtrc) Header size must be 24 bytes");
+static_assert(sizeof(Header) == 40, "(mtrc) Header size must be 40 bytes");
 static_assert(sizeof(Entry) == 64, "(mtrc) Entry size must be 64 bytes");

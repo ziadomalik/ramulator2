@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <format>
+#include <vector>
 
 #include "base/base.h"
 #include "dram_controller/controller.h"
@@ -18,11 +19,28 @@ private:
   IDRAM *m_dram;
   MTRCWriter *m_writer;
   std::filesystem::path m_trace_path;
+  std::vector<int32_t> m_command_latencies;
 
   Clk_t m_clk = 0;
   std::string m_trace_path_base;
 
 public:
+  int32_t infer_command_latency(int command) const {
+    int32_t latency = 1;
+    bool found = false;
+
+    for (const auto &level_cons : m_dram->m_timing_cons) {
+      for (const auto &timing : level_cons[command]) {
+        if (timing.cmd == command && timing.val > 0) {
+          latency = found ? std::min(latency, timing.val) : timing.val;
+          found = true;
+        }
+      }
+    }
+
+    return latency;
+  }
+
   void init() override {
     m_trace_path_base =
         param<std::string>("path")
@@ -36,7 +54,17 @@ public:
 
     m_trace_path =
         std::format("{}_{}.mtrc", m_trace_path_base, m_ctrl->m_channel_id);
-    m_writer = new MTRCWriter(m_trace_path);
+    m_writer = new MTRCWriter(
+        m_trace_path, m_dram->m_timing_vals("nCL"), m_dram->m_timing_vals("nCWL"),
+        static_cast<int16_t>(m_dram->get_level_size("channel")),
+        static_cast<int16_t>(m_dram->get_level_size("rank")),
+        static_cast<int16_t>(m_dram->get_level_size("bankgroup")),
+        static_cast<int16_t>(m_dram->get_level_size("bank")));
+
+    m_command_latencies.resize(m_dram->m_commands.size(), 1);
+    for (int cmd = 0; cmd < m_dram->m_commands.size(); cmd++) {
+      m_command_latencies[cmd] = infer_command_latency(cmd);
+    }
   }
 
   void update(bool request_found, ReqBuffer::iterator &req_it) override {
@@ -54,7 +82,8 @@ public:
       m_writer->write_entry(m_clk, req_it->addr_vec,
                             m_dram->m_commands(req_it->command),
                             req_it->source_id, req_it->type_id, req_it->arrive,
-                            req_it->depart, req_issue_duration);
+                            req_it->depart, req_issue_duration,
+                            m_command_latencies[req_it->command]);
     }
   }
 
